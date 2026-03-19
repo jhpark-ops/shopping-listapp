@@ -70,11 +70,22 @@
   <div class="list" id="list"></div>
 </div>
 <script>
-  const STORAGE_KEY = 'shopping-list';
-  let items = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+  const SUPABASE_URL = 'https://qvswzhcylbdcqjmqhsck.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2c3d6aGN5bGJkY3FqbXFoc2NrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4NjAyMTgsImV4cCI6MjA4OTQzNjIxOH0.aVm4unkAbvpU_6r6OUfAgLJFY7_H_3fKjAIIDCffT1o';
+  const API_BASE = `${SUPABASE_URL}/rest/v1/shopping_items`;
+  const HEADERS = {
+    'apikey': SUPABASE_KEY,
+    'Authorization': `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=representation'
+  };
 
-  function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  let items = [];
+
+  async function loadItems() {
+    const res = await fetch(`${API_BASE}?order=created_at.asc`, { headers: HEADERS });
+    items = await res.json();
+    render();
   }
 
   function render() {
@@ -83,11 +94,11 @@
       list.innerHTML = '<div class="empty">No items yet.</div>';
       return;
     }
-    list.innerHTML = items.map((item, i) => `
+    list.innerHTML = items.map((item) => `
       <div class="item ${item.checked ? 'checked' : ''}">
-        <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggle(${i})">
+        <input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggle(${item.id})">
         <span class="item-text">${escapeHtml(item.text)}</span>
-        <button class="delete-btn" onclick="remove(${i})">&times;</button>
+        <button class="delete-btn" onclick="remove(${item.id})">&times;</button>
       </div>
     `).join('');
   }
@@ -98,31 +109,44 @@
     return d.innerHTML;
   }
 
-  function addItem() {
+  async function addItem() {
     const input = document.getElementById('input');
     const text = input.value.trim();
     if (!text) return;
-    items.push({ text, checked: false });
     input.value = '';
-    save(); render();
     input.focus();
+    await fetch(API_BASE, {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ text, checked: false })
+    });
+    await loadItems();
   }
 
-  function toggle(i) {
-    items[i].checked = !items[i].checked;
-    save(); render();
+  async function toggle(id) {
+    const item = items.find(i => i.id === id);
+    if (!item) return;
+    await fetch(`${API_BASE}?id=eq.${id}`, {
+      method: 'PATCH',
+      headers: HEADERS,
+      body: JSON.stringify({ checked: !item.checked })
+    });
+    await loadItems();
   }
 
-  function remove(i) {
-    items.splice(i, 1);
-    save(); render();
+  async function remove(id) {
+    await fetch(`${API_BASE}?id=eq.${id}`, {
+      method: 'DELETE',
+      headers: HEADERS
+    });
+    await loadItems();
   }
 
   document.getElementById('input').addEventListener('keydown', e => {
     if (e.key === 'Enter') addItem();
   });
 
-  render();
+  loadItems();
 </script>
 </body>
 </html>
